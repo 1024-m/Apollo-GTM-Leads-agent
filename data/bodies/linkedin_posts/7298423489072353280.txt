@@ -1,0 +1,1 @@
+Train your own reasoning model like DeepSeek, but
