@@ -9,15 +9,7 @@ flowchart TD
     L3 -->|ok| L5[Apollo API: enrich + add to list]
   end
 
-  subgraph P2["Reddit pipeline"]
-    R1[Run reddit_posts.py] --> R2[Rows land in data/reddit_posts.csv]
-    R2 --> R3[Manual check each post]
-    R3 -->|not ok| R4[Leave out]
-    R3 -->|ok| R5[Keep person for mailing]
-  end
-
   L5 --> M1[Pick target repo for this campaign]
-  R5 --> M1
   M1 --> M2[Build person slug from firstname-lastname]
   M2 --> M3{That slug already used?}
   M3 -->|no| M4["/firstname-lastname/"]
