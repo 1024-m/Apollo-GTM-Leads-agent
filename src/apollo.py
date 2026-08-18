@@ -21,6 +21,31 @@ def _headers():
     }
 
 
+def _error_text(response):
+    try:
+        payload = response.json()
+    except Exception:
+        payload = None
+    if isinstance(payload, dict):
+        return (payload.get("error") or payload.get("message") or "").strip() or response.text
+    return (response.text or "").strip()
+
+
+def _request(method, url, **kwargs):
+    if requests is None:
+        raise RuntimeError("requests")
+    timeout = kwargs.pop("timeout", 30)
+    response = requests.request(method, url, headers=_headers(), timeout=timeout, **kwargs)
+    if not response.ok:
+        raise RuntimeError(f"{response.status_code} {_error_text(response)}".strip())
+    if not response.content:
+        return {}
+    try:
+        return response.json()
+    except Exception:
+        return {}
+
+
 def api_key():
     load_env()
     key = (os.environ.get("APOLLO_API_KEY") or "").strip()
@@ -30,11 +55,7 @@ def api_key():
 
 
 def contact_lists():
-    if requests is None:
-        raise RuntimeError("requests")
-    response = requests.get(LABELS_URL, headers=_headers(), timeout=30)
-    response.raise_for_status()
-    payload = response.json()
+    payload = _request("GET", LABELS_URL)
     rows = payload if isinstance(payload, list) else payload.get("labels") or payload.get("tags") or []
     out = []
     for row in rows:
@@ -62,16 +83,12 @@ def contact_list_id(name):
 
 
 def search_contacts_page(page=1, per_page=100, keywords="", label_ids=None):
-    if requests is None:
-        raise RuntimeError("requests")
     body = {"page": page, "per_page": per_page}
     if (keywords or "").strip():
         body["q_keywords"] = keywords.strip()
     if label_ids:
         body["contact_label_ids"] = list(label_ids)
-    response = requests.post(CONTACTS_SEARCH_URL, headers=_headers(), json=body, timeout=30)
-    response.raise_for_status()
-    payload = response.json()
+    payload = _request("POST", CONTACTS_SEARCH_URL, json=body)
     rows = payload.get("contacts") or []
     pagination = payload.get("pagination") or {}
     return [row for row in rows if isinstance(row, dict)], pagination
@@ -102,19 +119,10 @@ def require_list(name):
 
 
 def create_contact_list(name):
-    if requests is None:
-        raise RuntimeError("requests")
     wanted = (name or "").strip()
     if not wanted:
         raise RuntimeError("list")
-    response = requests.post(
-        LABELS_URL,
-        headers=_headers(),
-        json={"name": wanted, "modality": "contacts"},
-        timeout=30,
-    )
-    response.raise_for_status()
-    return response.json()
+    return _request("POST", LABELS_URL, json={"name": wanted, "modality": "contacts"})
 
 
 def search_contacts(keywords, per_page=25):
@@ -140,14 +148,7 @@ def create_contact(name, linkedin_url, title=""):
     }
     if (title or "").strip():
         body["title"] = title.strip()
-    response = requests.post(
-        CONTACTS_URL,
-        headers=_headers(),
-        json=body,
-        timeout=30,
-    )
-    response.raise_for_status()
-    payload = response.json()
+    payload = _request("POST", CONTACTS_URL, json=body)
     contact = payload.get("contact") if isinstance(payload, dict) else payload
     if not isinstance(contact, dict) or not contact.get("id"):
         raise RuntimeError("contact")
@@ -161,11 +162,9 @@ def add_contacts_to_list(list_name, entity_ids):
     ids = [item for item in entity_ids if item]
     if not wanted or not ids:
         raise RuntimeError("list")
-    response = requests.post(
+    return _request(
+        "POST",
         ADD_TO_LIST_URL,
-        headers=_headers(),
         json={"entity_ids": ids, "label_names": [wanted], "modality": "contacts"},
         timeout=60,
     )
-    response.raise_for_status()
-    return response.json()

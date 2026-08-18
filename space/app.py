@@ -303,8 +303,8 @@ def refresh_lists(request: Request):
     session = _get_session(request)
     try:
         names = contact_list_names()
-    except Exception:
-        session["msg"] = "apollo list refresh failed (APOLLO_API_KEY?)"
+    except Exception as exc:
+        session["msg"] = str(exc)[:220] or "apollo list refresh failed"
         return _page(request, session)
     session["apollo_lists"] = names
     if session.get("list") not in names:
@@ -324,8 +324,8 @@ def select_list(request: Request, apollo_list: str = Form("")):
         return _page(request, session)
     try:
         name, count = refresh_apollo_state(apollo_list)
-    except Exception:
-        session.update({"list": "", "list_ready": False, "state_count": 0, "msg": "list sync failed (name or keys)"})
+    except Exception as exc:
+        session.update({"list": "", "list_ready": False, "state_count": 0, "msg": str(exc)[:220] or "list sync failed"})
         return _page(request, session)
     session.update(
         {
